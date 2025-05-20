@@ -208,7 +208,7 @@
 
     const service = new google.maps.places.PlacesService(map);
 
-    fetch('test1.csv')
+    fetch('https://raw.githubusercontent.com/pppanan/pawhood/main/test1.csv')
       .then(response => response.text())
       .then(csvText => {
         Papa.parse(csvText, {
