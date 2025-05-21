@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Emotion Map with Google Place Info</title>
+  <!-- 添加Google Fonts获取花体字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+  
+  <style>
+    html, body { 
+      height: 100%; 
+      margin: 0; 
+      font-family: sans-serif; 
+    }
+
+
+    .search-bar {
+      position: absolute;
+      top: 100px; /* 👈 控制与顶部距离 */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 600px;
+      display: flex;
+      background-color: white;
+      padding: 8px 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .search-bar button {
+      margin-left: 8px;
+      padding: 8px 12px;
+      font-size: 16px;
+      background-color: #ff8c00;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+
+
+    /* 新增顶部栏样式 */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: white;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 10px 0;
+    }
+    
+    .app-title {
+      font-family: 'Dancing Script', cursive;
+      font-size: 2.5rem;
+      text-align: center;
+      margin: 0;
+      color: #ff8c00; /* 橙色与你的心情地图配色协调 */
+    }
+    
+    .nav-bar {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+      background-color: #f8f8f8;
+      padding: 10px 0;
+    }
+    
+    .nav-item {
+      margin: 0 15px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #555;
+      transition: all 0.3s ease;
+      border-radius: 5px;
+    }
+    
+    .nav-item:hover {
+      color: #ff8c00;
+      background-color: #f0f0f0;
+    }
+    
+    /* 调整地图位置以适应顶部栏 */
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+
+    
+    #legend {
+      background: white;
+      padding: 10px;
+      margin: 20px;
+      font-size: 14px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.15);
+      max-width: 200px;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-right: 6px;
+      border: 1px solid #ccc;
+    }
+    
+    .legend-emoji {
+      margin-right: 6px;
+      font-size: 16px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+
+  <div class="search-bar">
+  <input id="searchInput" type="text" placeholder="Enter postcode or address..." />
+  <button onclick="searchPlace()">🔍</button>
+</div>
+
+<div id="map"></div>
+<div id="legend"><h3>Mood Legend</h3></div>
+
+<script>
+  let map;
+
+  const moodConfig = {
+    love:        { color: '#ff8c00', emoji: '😍' },
+    joy:         { color: '#ffa500', emoji: '😊' },
+    excitement:  { color: '#ffc04d', emoji: '🤩' },
+    amusement:   { color: '#b0d7ff', emoji: '😄' },
+    surprise:    { color: '#87cefa', emoji: '😲' },
+    nervousness: { color: '#6495ed', emoji: '😰' },
+    fear:        { color: '#4682b4', emoji: '😱' }
+    
+  };
+
+  function drawGradientCircle(center, color, map, radiusMeters = 500) {
+    const overlay = new google.maps.OverlayView();
+
+    overlay.onAdd = function () {
+      const layer = document.createElement('canvas');
+      layer.style.position = 'absolute';
+      layer.style.pointerEvents = 'none';
+      this.canvas = layer;
+      const panes = this.getPanes();
+      panes.overlayLayer.appendChild(layer);
+    };
+
+    overlay.draw = function () {
+      const projection = this.getProjection();
+      const centerPx = projection.fromLatLngToDivPixel(center);
+      const scale = Math.pow(2, map.getZoom());
+      const metersPerPixel = 156543.03392 * Math.cos(center.lat() * Math.PI / 180) / scale;
+      const radiusPx = radiusMeters / metersPerPixel;
+
+      const canvas = this.canvas;
+      const ctx = canvas.getContext('2d');
+      const size = radiusPx * 2;
+      canvas.width = size;
+      canvas.height = size;
+      canvas.style.left = `${centerPx.x - radiusPx}px`;
+      canvas.style.top = `${centerPx.y - radiusPx}px`;
+
+      const gradient = ctx.createRadialGradient(radiusPx, radiusPx, 0, radiusPx, radiusPx, radiusPx);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(radiusPx, radiusPx, radiusPx, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    overlay.onRemove = function () {
+      this.canvas.parentNode.removeChild(this.canvas);
+      this.canvas = null;
+    };
+
+    overlay.setMap(map);
+  }
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 1.35, lng: 103.82 },
+      zoom: 12,
+      styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }],
+      zoomControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false
+    });
+
+    // 添加图例
+    const legend = document.getElementById('legend');
+    Object.keys(moodConfig).forEach(mood => {
+      const moodInfo = moodConfig[mood];
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+
+      const colorCircle = document.createElement('div');
+      colorCircle.className = 'legend-color';
+      colorCircle.style.backgroundColor = moodInfo.color;
+
+      const emoji = document.createElement('span');
+      emoji.className = 'legend-emoji';
+      emoji.innerText = moodInfo.emoji;
+
+      const label = document.createElement('span');
+      label.innerText = mood.charAt(0).toUpperCase() + mood.slice(1);
+
+      item.appendChild(colorCircle);
+      item.appendChild(emoji);
+      item.appendChild(label);
+      legend.appendChild(item);
+    });
+    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+
+    const service = new google.maps.places.PlacesService(map);
+
+    fetch('https://raw.githubusercontent.com/pppanan/pawhood/main/test1.csv')
+      .then(response => response.text())
+      .then(csvText => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            results.data.forEach(row => {
+              const lat = parseFloat(row.Latitude);
+              const lng = parseFloat(row.Longitude);
+              const mood = row.Mood.trim().toLowerCase();
+              const name = row.Name;
+              const address = row.Address;
+              const moodData = moodConfig[mood] || { color: '#cccccc', emoji: '❓' };
+              const position = new google.maps.LatLng(lat, lng);
+
+              drawGradientCircle(position, moodData.color, map, 500);
+
+              const marker = new google.maps.Marker({
+                position: { lat, lng },
+                map: map,
+                icon: {
+                  url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                  scaledSize: new google.maps.Size(1, 1),
+                },
+                label: {
+                  text: moodData.emoji,
+                  fontSize: '20px'
+                }
+              });
+
+              const query = `${name}, Singapore`;
+              const request = {
+                query: query,
+                fields: ['name', 'formatted_address', 'rating', 'opening_hours', 'photos', 'url']
+              };
+
+              service.findPlaceFromQuery(request, (results, status) => {
+                let content = `
+                  <div style="max-width:240px;">
+                    <strong>${moodData.emoji} ${name}</strong><br/>
+                    ${address}<br/>
+                    <i>Mood: ${mood}</i><br/>
+                  </div>
+                `;
+
+                if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+                  const place = results[0];
+                  const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 240 }) || '';
+                  const rating = place.rating || 'N/A';
+                  const openNow = place.opening_hours?.isOpen() ? 'Open now' : 'Closed';
+                  const mapsLink = place.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+
+                  content = `
+                    <div style="max-width:240px;">
+                      <strong>${moodData.emoji} <a href="${mapsLink}" target="_blank">${place.name}</a></strong><br/>
+                      ${place.formatted_address}<br/>
+                      ⭐ Rating: ${rating}<br/>
+                      🕒 Status: ${openNow}<br/>
+                      ${photoUrl ? `<img src="${photoUrl}" alt="photo" style="width:100%; margin-top:5px; border-radius:4px;" />` : ''}
+                    </div>
+                  `;
+                }
+
+                const infoWindow = new google.maps.InfoWindow({ content });
+                marker.addListener('click', () => infoWindow.open(map, marker));
+                marker.addListener('mouseover', () => infoWindow.open(map, marker));
+                marker.addListener('mouseout', () => infoWindow.close());
+              });
+            });
+          }
+        });
+      });
+  }
+
+</script>
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB6ZRuv-6AckVDyI_4LVg9_alTSA9hQg9U&libraries=places&callback=initMap"
+  async defer
+></script>
+
+</body>
+</html>
