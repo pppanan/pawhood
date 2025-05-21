@@ -14,7 +14,44 @@
       margin: 0; 
       font-family: sans-serif; 
     }
+
+
+    .search-bar {
+      position: absolute;
+      top: 100px; /* 👈 控制与顶部距离 */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 600px;
+      display: flex;
+      background-color: white;
+      padding: 8px 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .search-bar button {
+      margin-left: 8px;
+      padding: 8px 12px;
+      font-size: 16px;
+      background-color: #ff8c00;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
     
+
+
     /* 新增顶部栏样式 */
     .header {
       position: fixed;
@@ -59,11 +96,14 @@
     }
     
     /* 调整地图位置以适应顶部栏 */
-    #map { 
-      height: calc(100% - 120px); /* 减去顶部栏高度 */
-      width: 100%; 
-      margin-top: 120px; /* 顶部栏高度 */
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
     }
+
     
     #legend {
       background: white;
@@ -98,15 +138,9 @@
 </head>
 <body>
 
-<!-- 新增顶部栏 -->
-<div class="header">
-  <h1 class="app-title">Pawhood</h1>
-  <div class="nav-bar">
-    <div class="nav-item">MAP</div>
-    <div class="nav-item">Search</div>
-    <div class="nav-item">Social Post</div>
-    <div class="nav-item">Personal Info</div>
-  </div>
+  <div class="search-bar">
+  <input id="searchInput" type="text" placeholder="Enter postcode or address..." />
+  <button onclick="searchPlace()">🔍</button>
 </div>
 
 <div id="map"></div>
@@ -282,17 +316,7 @@
         });
       });
   }
-  
-  // 添加导航栏点击事件
-  document.addEventListener('DOMContentLoaded', function() {
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-      item.addEventListener('click', function() {
-        // 这里可以添加导航功能
-        alert(`Navigating to ${this.textContent}`);
-      });
-    });
-  });
+
 </script>
 
 <script
